@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
 import { motion, AnimatePresence } from "framer-motion"
-import { MessageSquare, Activity, Calendar, Pill, Settings, User, Menu, X, ArrowLeft, Shield, LogOut, Globe } from "lucide-react"
+import { MessageSquare, Activity, Calendar, Pill, Settings, User, Menu, X, ArrowLeft, Shield, LogOut, Globe, BarChart2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -105,6 +105,16 @@ export default function Dashboard() {
       setCurrentLanguage(savedLanguage)
     }
 
+    // Load active tab from localStorage
+    const savedActiveTab = localStorage.getItem("activeTab")
+    if (savedActiveTab) {
+      setActiveTab(savedActiveTab)
+      // If the active tab is "analysis", navigate to the analysis page
+      if (savedActiveTab === "analysis") {
+        router.push("/analysis")
+      }
+    }
+
     // Add authentication check
     const isLoggedIn = localStorage.getItem("femcare-isLoggedIn")
     if (isLoggedIn !== "true") {
@@ -131,6 +141,22 @@ export default function Dashboard() {
   const handleLogout = () => {
     localStorage.removeItem("femcare-isLoggedIn")
     router.push("/login")
+  }
+
+  // Update the handleTabChange function
+  const handleTabChange = (tab: string) => {
+    // Don't do anything if we're already on the selected tab
+    if (tab === activeTab) return;
+
+    setActiveTab(tab)
+    localStorage.setItem("activeTab", tab)
+    
+    // Only navigate if we're changing to a different page
+    if (tab === "analysis" && window.location.pathname !== "/analysis") {
+      router.push("/analysis")
+    } else if (tab !== "analysis" && window.location.pathname === "/analysis") {
+      router.push("/dashboard")
+    }
   }
 
   return (
@@ -184,7 +210,7 @@ export default function Dashboard() {
                   <Button
                     variant={activeTab === "overview" ? "secondary" : "ghost"}
                     className={cn("w-full justify-start", !sidebarOpen && "md:justify-center")}
-                    onClick={() => setActiveTab("overview")}
+                    onClick={() => handleTabChange("overview")}
                   >
                     <Activity className="mr-2 h-5 w-5" />
                     <span className={cn(!sidebarOpen && "md:hidden")}>Overview</span>
@@ -195,10 +221,21 @@ export default function Dashboard() {
                   <Button
                     variant={activeTab === "chat" ? "secondary" : "ghost"}
                     className={cn("w-full justify-start", !sidebarOpen && "md:justify-center")}
-                    onClick={() => setActiveTab("chat")}
+                    onClick={() => handleTabChange("chat")}
                   >
                     <MessageSquare className="mr-2 h-5 w-5" />
-                    <span className={cn(!sidebarOpen && "md:hidden")}>Chat Assistant</span>
+                    <span className={cn(!sidebarOpen && "md:hidden")}>Chat</span>
+                  </Button>
+                </motion.div>
+
+                <motion.div variants={itemVariants}>
+                  <Button
+                    variant={activeTab === "analysis" ? "secondary" : "ghost"}
+                    className={cn("w-full justify-start", !sidebarOpen && "md:justify-center")}
+                    onClick={() => handleTabChange("analysis")}
+                  >
+                    <BarChart2 className="mr-2 h-5 w-5" />
+                    <span className={cn(!sidebarOpen && "md:hidden")}>Analysis</span>
                   </Button>
                 </motion.div>
 
@@ -206,7 +243,7 @@ export default function Dashboard() {
                   <Button
                     variant={activeTab === "medications" ? "secondary" : "ghost"}
                     className={cn("w-full justify-start", !sidebarOpen && "md:justify-center")}
-                    onClick={() => setActiveTab("medications")}
+                    onClick={() => handleTabChange("medications")}
                   >
                     <Pill className="mr-2 h-5 w-5" />
                     <span className={cn(!sidebarOpen && "md:hidden")}>Medications</span>
@@ -217,7 +254,7 @@ export default function Dashboard() {
                   <Button
                     variant={activeTab === "period" ? "secondary" : "ghost"}
                     className={cn("w-full justify-start", !sidebarOpen && "md:justify-center")}
-                    onClick={() => setActiveTab("period")}
+                    onClick={() => handleTabChange("period")}
                   >
                     <Calendar className="mr-2 h-5 w-5" />
                     <span className={cn(!sidebarOpen && "md:hidden")}>Period Tracker</span>
@@ -228,7 +265,7 @@ export default function Dashboard() {
                   <Button
                     variant={activeTab === "appointments" ? "secondary" : "ghost"}
                     className={cn("w-full justify-start", !sidebarOpen && "md:justify-center")}
-                    onClick={() => setActiveTab("appointments")}
+                    onClick={() => handleTabChange("appointments")}
                   >
                     <Calendar className="mr-2 h-5 w-5" />
                     <span className={cn(!sidebarOpen && "md:hidden")}>Appointments</span>

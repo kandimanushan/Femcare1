@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from typing import List, Optional, Dict
@@ -8,6 +8,9 @@ from datetime import datetime
 from starlette.responses import StreamingResponse
 import markdown
 from markdown.extensions import fenced_code, tables, nl2br
+import pdfplumber
+import io
+import os
 
 app = FastAPI()
 
@@ -140,6 +143,170 @@ async def check_ollama_status():
             "status": "error",
             "message": f"Failed to connect to Ollama service: {str(e)}"
         }
+
+@app.post("/api/analyze")
+async def analyze_document(file: UploadFile = File(...)):
+    try:
+        # Read the uploaded file
+        contents = await file.read()
+        
+        # Save the file temporarily
+        with open("temp.pdf", "wb") as f:
+            f.write(contents)
+        
+        # Extract text from PDF
+        text = ""
+        with pdfplumber.open("temp.pdf") as pdf:
+            for page in pdf.pages:
+                text += page.extract_text() or ""
+        
+        # Clean up temporary file
+        os.remove("temp.pdf")
+        
+        # Generate analysis using Ollama
+        prompt = f"""Analyze the following medical document and provide:
+1. A concise summary of the key points
+2. Important keywords and medical terms
+3. Key findings and recommendations
+4. Any potential concerns or follow-up actions
+
+Document text:
+{text}
+
+Please format your response as JSON with the following structure:
+{{
+    "summary": "A concise summary of the document",
+    "keywords": ["list", "of", "important", "keywords"],
+    "findings": ["list", "of", "key", "findings"],
+    "recommendations": ["list", "of", "recommendations"],
+    "concerns": ["list", "of", "concerns", "if", "any"]
+}}"""
+
+        # Prepare the request payload
+        payload = {
+            "model": OLLAMA_MODEL,
+            "messages": [{"role": "user", "content": prompt}],
+            "stream": False,
+            "options": {
+                "temperature": 0.7,
+                "num_predict": 2000,
+                "top_k": 40,
+                "top_p": 0.9,
+                "repeat_penalty": 1.1,
+                "seed": 42,
+                "num_ctx": 4096,
+                "num_thread": 4
+            }
+        }
+        
+        # Get analysis from Ollama
+        async with httpx.AsyncClient() as client:
+            response = await client.post(f"{OLLAMA_API_URL}/api/chat", json=payload, timeout=60.0)
+            
+            if response.status_code != 200:
+                raise HTTPException(status_code=response.status_code, detail="Failed to get analysis from Ollama")
+            
+            data = response.json()
+            analysis_text = data.get("message", {}).get("content", "")
+        
+        # Parse the analysis text as JSON
+        try:
+            analysis = json.loads(analysis_text)
+        except json.JSONDecodeError:
+            # If JSON parsing fails, create a structured response from the text
+            analysis = {
+                "summary": analysis_text[:500] + "...",  # First 500 chars as summary
+                "keywords": ["Error parsing analysis"],
+                "findings": ["Error parsing analysis"],
+                "recommendations": ["Error parsing analysis"],
+                "concerns": ["Error parsing analysis"]
+            }
+        
+        return analysis
+        
+    except Exception as e:
+        print(f"Error analyzing document: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+def generate_summary(text: str) -> str:
+    # Simple summary generation - in a real implementation, you'd use more sophisticated NLP
+    sentences = text.split('.')
+    if len(sentences) > 3:
+        return '. '.join(sentences[:3]) + '.'
+    return text
+
+def generate_insights(text: str) -> List[str]:
+    insights = []
+    medications = extract_medications(text)
+    diagnoses = extract_diagnoses(text)
+    dates = extract_dates(text)
+
+    if medications:
+        insights.append(f"Found {len(medications)} medications: {', '.join(medications)}")
+    if diagnoses:
+        insights.append(f"Found {len(diagnoses)} diagnoses: {', '.join(diagnoses)}")
+    if dates:
+        insights.append(f"Found {len(dates)} important dates: {', '.join(dates)}")
+
+    return insights
+
+def extract_medications(text: str) -> List[str]:
+    # Simple medication extraction - in a real implementation, you'd use a medical terminology database
+    medications = []
+    common_medications = ["aspirin", "ibuprofen", "paracetamol", "antibiotics", "insulin"]
+    words = text.lower().split()
+    
+    for i, word in enumerate(words):
+        if word in common_medications:
+            # Try to get the full medication name
+            if i > 0 and words[i-1] not in ["the", "a", "an", "and", "or"]:
+                medications.append(f"{words[i-1]} {word}")
+            else:
+                medications.append(word)
+    
+    return list(set(medications))
+
+def extract_diagnoses(text: str) -> List[str]:
+    # Simple diagnosis extraction - in a real implementation, you'd use a medical terminology database
+    diagnoses = []
+    common_diagnoses = ["diabetes", "hypertension", "asthma", "arthritis", "cancer"]
+    words = text.lower().split()
+    
+    for i, word in enumerate(words):
+        if word in common_diagnoses:
+            # Try to get the full diagnosis
+            if i > 0 and words[i-1] not in ["the", "a", "an", "and", "or"]:
+                diagnoses.append(f"{words[i-1]} {word}")
+            else:
+                diagnoses.append(word)
+    
+    return list(set(diagnoses))
+
+def extract_dates(text: str) -> List[str]:
+    # Simple date extraction
+    import re
+    date_pattern = r'\d{1,2}[-/]\d{1,2}[-/]\d{2,4}'
+    return list(set(re.findall(date_pattern, text)))
+
+def generate_chart_data(text: str) -> Dict:
+    medications = extract_medications(text)
+    diagnoses = extract_diagnoses(text)
+    dates = extract_dates(text)
+
+    return {
+        "medications": {
+            "labels": medications,
+            "data": [100] * len(medications)  # Placeholder data
+        },
+        "diagnoses": {
+            "labels": diagnoses,
+            "data": [100] * len(diagnoses)  # Placeholder data
+        },
+        "timeline": {
+            "labels": dates,
+            "data": [100] * len(dates)  # Placeholder data
+        }
+    }
 
 # Run the server
 if __name__ == "__main__":
