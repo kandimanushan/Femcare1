@@ -306,6 +306,12 @@ Please follow these guidelines:
   }
 
   const handleDownloadMessage = async (content: string, role: string) => {
+    // Check if we're in a browser environment
+    if (typeof window === 'undefined') {
+      console.warn('PDF generation is only available in browser environment')
+      return
+    }
+
     // Create a temporary div for the content
     const tempDiv = document.createElement('div')
     tempDiv.className = 'markdown-content'
@@ -437,7 +443,7 @@ Please follow these guidelines:
     
     // Configure PDF options
     const opt = {
-      margin: [20, 20, 20, 20], // [top, right, bottom, left] in mm
+      margin: [20, 20, 20, 20] as [number, number, number, number], // [top, right, bottom, left] in mm
       filename: `chat-message-${role}-${new Date().toISOString()}.pdf`,
       image: { 
         type: 'jpeg', 

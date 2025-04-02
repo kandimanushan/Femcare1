@@ -4,7 +4,7 @@ export async function GET() {
   try {
     // In a real implementation, this would check the actual Ollama service through FastAPI
     // For now, we'll simulate a check by trying to connect to the FastAPI endpoint
-    const response = await fetch("/api/health", {
+    const response = await fetch("http://localhost:8001/api/health", {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
