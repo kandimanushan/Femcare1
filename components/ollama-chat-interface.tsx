@@ -21,9 +21,17 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
-import jsPDF from 'jspdf'
-import html2pdf from 'html2pdf.js'
 import { marked } from 'marked'
+
+// Dynamically import PDF-related modules
+const loadPdfModules = async () => {
+  if (typeof window === 'undefined') return null;
+  const [jsPDF, html2pdf] = await Promise.all([
+    import('jspdf'),
+    import('html2pdf.js')
+  ]);
+  return { jsPDF, html2pdf };
+};
 
 type Message = {
   id: string
@@ -312,6 +320,16 @@ Please follow these guidelines:
       return
     }
 
+    // Load PDF modules dynamically
+    const pdfModules = await loadPdfModules();
+    if (!pdfModules) {
+      console.warn('Failed to load PDF modules');
+      return;
+    }
+
+    const { html2pdf } = pdfModules;
+    const html2pdfInstance = html2pdf.default();
+
     // Create a temporary div for the content
     const tempDiv = document.createElement('div')
     tempDiv.className = 'markdown-content'
@@ -469,7 +487,7 @@ Please follow these guidelines:
     
     // Generate PDF
     try {
-      await html2pdf().set(opt).from(tempDiv).save()
+      await html2pdfInstance.set(opt).from(tempDiv).save()
     } catch (error) {
       console.error('Error generating PDF:', error)
       // Fallback to text file if PDF generation fails
